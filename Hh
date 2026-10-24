@@ -1,0 +1,267 @@
+-- ============================================================================
+-- Quantum + UE Ultimate & Sleepy & RCLR Prem | Delta Optimized Master Suite
+-- ============================================================================
+
+local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local SoundService = game:GetService("SoundService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lighting = game:GetService("Lighting")
+local Stats = game:GetService("Stats")
+local TeleportService = game:GetService("TeleportService")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+
+Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+    Camera = Workspace.CurrentCamera
+end)
+
+if not game:IsLoaded() then game.Loaded:Wait() end
+while not LocalPlayer do
+    Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
+    LocalPlayer = Players.LocalPlayer
+end
+
+local util = pcall(function() return require(ReplicatedStorage.Modules.Utility) end) and require(ReplicatedStorage.Modules.Utility) or nil
+local enum = pcall(function() return require(ReplicatedStorage.Modules.EnumLibrary) end) and require(ReplicatedStorage.Modules.EnumLibrary) or nil
+local FighterController = pcall(function() return require(LocalPlayer.PlayerScripts.Controllers.FighterController) end) and require(LocalPlayer.PlayerScripts.Controllers.FighterController) or nil
+
+-- [델타 최적화] 튕김 방지를 위해 위험한 훅 및 setthreadidentity 루틴 비활성화
+print('[Quantum + RCLR Master - Delta Optimized] 델타 호환 모드로 안전하게 로드되었습니다.')
+
+-- 글로벌 설정 및 야부진 플래그 테이블 (극한 수치를 델타 안전 수치로 조정)
+getgenv().meow_flags = getgenv().meow_flags or {}
+local Settings = getgenv().meow_flags
+
+-- 전투 및 오토슈팅 설정
+Settings.Enabled = Settings.Enabled or false
+Settings.FireRate = Settings.FireRate or 0.05
+Settings.WeaponSlot = Settings.WeaponSlot or "Primary"
+Settings.MaxDistance = Settings.MaxDistance or 500
+
+-- 폭발 / 보이드 스팸 설정 (1e15 -> 10000 안전 수치로 변경)
+Settings.VoidSpamEnabled = Settings.VoidSpamEnabled or false
+Settings.VoidSpamMethod = Settings.VoidSpamMethod or "Quantum"
+Settings.VoidSpamOffset = Settings.VoidSpamOffset or 25
+Settings.VoidSpeed = Settings.VoidSpeed or 10000
+Settings.AntiFling = Settings.AntiFling or true
+Settings.AntiVoid = Settings.AntiVoid or true
+Settings.TP_CornerOnly = Settings.TP_CornerOnly or true
+
+-- 4대 레이지 모드 세부 설정
+Settings.LuahookRageEnabled = Settings.LuahookRageEnabled or false
+Settings.LuahookRageMode = Settings.LuahookRageMode or "Polar"
+Settings.LuahookRageDirectFire = Settings.LuahookRageDirectFire or false
+
+Settings.KHRageBotEnabled = Settings.KHRageBotEnabled or false
+Settings.UERagebotEnabled = Settings.UERagebotEnabled or false
+
+Settings.SleepyRageEnabled = Settings.SleepyRageEnabled or false
+Settings.SleepyRageFOV = Settings.SleepyRageFOV or 180
+Settings.SleepySmoothing = Settings.SleepySmoothing or 0.08
+
+-- Orbit 설정
+Settings.OrbitEnabled = Settings.OrbitEnabled or false
+Settings.OrbitMode = Settings.OrbitMode or "Circle"
+Settings.OrbitSpeed = Settings.OrbitSpeed or 10
+Settings.OrbitRadius = Settings.OrbitRadius or 12
+Settings.OrbitHeight = Settings.OrbitHeight or 3
+
+-- Translocation 설정 (극한 오프셋 조정)
+Settings.TranslocationEnabled = Settings.TranslocationEnabled or false
+Settings.TranslocationMode = Settings.TranslocationMode or "Wave"
+Settings.TranslocFrequency = Settings.TranslocFrequency or 60
+Settings.TranslocOffsetDist = Settings.TranslocOffsetDist or 50
+Settings.FakeVelocity = Settings.FakeVelocity or true
+Settings.FakeVelMag = Settings.FakeVelMag or 1000
+
+-- Riot 모듈 설정
+Settings.RiotGodmode = Settings.RiotGodmode or false
+Settings.RiotAbuser = Settings.RiotAbuser or false
+Settings.RiotAbuserMode = Settings.RiotAbuserMode or "Stick"
+Settings.FastMeleeEnabled = Settings.FastMeleeEnabled or false
+
+-- Prediction V2 및 Anti-Bait 설정
+Settings.PredictionV2Enabled = Settings.PredictionV2Enabled or false
+Settings.PredRadius = Settings.PredRadius or 400
+Settings.PredLeadTime = Settings.PredLeadTime or 0.22
+Settings.AntiBaitEnabled = Settings.AntiBaitEnabled or false
+
+-- Defense & Anti-Aim 설정
+Settings.AntiAimEnabled = Settings.AntiAimEnabled or false
+Settings.AntiAimMode = Settings.AntiAimMode or "Jitter"
+Settings.AntiAimSpeed = Settings.AntiAimSpeed or 500
+
+-- 슬리피 페이크 포지션 V2 심화 설정
+Settings.fake_position_enabled = Settings.fake_position_enabled or false
+Settings.fake_position_depth = Settings.fake_position_depth or 5.8
+Settings.fake_position_visualizer = Settings.fake_position_visualizer or true
+
+-- 월드 및 플레이어 설정
+Settings.FullbrightEnabled = Settings.FullbrightEnabled or false
+Settings.world_skybox_enabled = Settings.world_skybox_enabled or false
+Settings.skybox_preset = Settings.skybox_preset or "Synthwave"
+Settings.WeatherEnabled = Settings.WeatherEnabled or false
+Settings.TimeOfDay = Settings.TimeOfDay or 14
+Settings.SpeedHackEnabled = Settings.SpeedHackEnabled or false
+Settings.WalkSpeedValue = Settings.WalkSpeedValue or 24
+Settings.InfiniteJumpEnabled = Settings.InfiniteJumpEnabled or false
+
+-- Skin Changer 설정
+Settings.SkinChangerEnabled = Settings.SkinChangerEnabled or false
+Settings.SkinMaterial = Settings.SkinMaterial or "Neon"
+Settings.SkinColor = Settings.SkinColor or Color3.fromRGB(0, 255, 128)
+
+getgenv().Config = Settings
+
+local meowState = { Destroyed = false, CurrentTarget = nil }
+local fakePos = { Enabled = false, VirtualCF = nil, GhostBox = nil }
+
+local SkyboxPresets = {
+    Synthwave = { SkyboxBk = "rbxassetid://1550974868", SkyboxDn = "rbxassetid://1550974868", SkyboxFt = "rbxassetid://1550974868", SkyboxLf = "rbxassetid://1550974868", SkyboxRt = "rbxassetid://1550974868", SkyboxUp = "rbxassetid://1550974868" },
+    Space = { SkyboxBk = "rbxassetid://10134444", SkyboxDn = "rbxassetid://10134444", SkyboxFt = "rbxassetid://10134444", SkyboxLf = "rbxassetid://10134444", SkyboxRt = "rbxassetid://10134444", SkyboxUp = "rbxassetid://10134444" },
+    Galaxy = { SkyboxBk = "rbxassetid://159454288", SkyboxDn = "rbxassetid://159454288", SkyboxFt = "rbxassetid://159454288", SkyboxLf = "rbxassetid://159454288", SkyboxRt = "rbxassetid://159454288", SkyboxUp = "rbxassetid://159454288" }
+}
+
+local function applyWorldSettings()
+    pcall(function()
+        if Settings.FullbrightEnabled then
+            Lighting.Brightness = 2
+            Lighting.ClockTime = Settings.TimeOfDay
+            Lighting.GlobalShadows = false
+        else
+            Lighting.GlobalShadows = true
+        end
+
+        if Settings.world_skybox_enabled then
+            local preset = SkyboxPresets[Settings.skybox_preset] or SkyboxPresets.Synthwave
+            local sky = Lighting:FindFirstChildOfClass("Sky") or Instance.new("Sky", Lighting)
+            for k, v in pairs(preset) do sky[k] = v end
+        else
+            local sky = Lighting:FindFirstChildOfClass("Sky")
+            if sky then sky:Destroy() end
+        end
+    end)
+end
+
+local function applySkinChanger()
+    if not Settings.SkinChangerEnabled then return end
+    pcall(function()
+        local char = LocalPlayer.Character
+        local backpack = LocalPlayer:FindFirstChild("Backpack")
+        local function skinTool(tool)
+            if tool:IsA("Tool") then
+                for _, part in ipairs(tool:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.Material = Enum.Material[Settings.SkinMaterial] or Enum.Material.Neon
+                        part.Color = Settings.SkinColor
+                    end
+                end
+            end
+        end
+        if char then for _, item in ipairs(char:GetChildren()) do skinTool(item) end end
+        if backpack then for _, item in ipairs(backpack:GetChildren()) do skinTool(item) end end
+    end)
+end
+
+local function get_target()
+    local myChar = LocalPlayer.Character
+    if not myChar then return nil end
+    local myRoot = myChar:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return nil end
+
+    local bestTarget = nil
+    local bestScore = math.huge
+    for _, pl in ipairs(Players:GetPlayers()) do
+        if pl ~= LocalPlayer and pl.Character then
+            local char = pl.Character
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if hum and hum.Health > 0 and root then
+                local dist = (root.Position - myRoot.Position).Magnitude
+                if dist < bestScore then
+                    bestScore = dist
+                    bestTarget = { Player = pl, Character = char, RootPart = root, HitPart = char:FindFirstChild("Head") or root }
+                end
+            end
+        end
+    end
+    return bestTarget
+end
+
+RunService.Heartbeat:Connect(function(dt)
+    applyWorldSettings()
+    applySkinChanger()
+
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not char or not hrp then return end
+
+    if Settings.VoidSpamEnabled then
+        pcall(function()
+            local t = tick() * Settings.VoidSpeed
+            local offset = Settings.VoidSpamOffset or 25
+            hrp.CFrame = hrp.CFrame + Vector3.new(math.sin(t) * offset, -2, math.cos(t) * offset)
+        end)
+    end
+
+    if Settings.LuahookRageEnabled then
+        pcall(function()
+            local target = get_target()
+            if target and target.HitPart then
+                hrp.CFrame = CFrame.new(hrp.Position, Vector3.new(target.HitPart.Position.X, hrp.Position.Y, target.HitPart.Position.Z))
+            end
+        end)
+    end
+end)
+
+-- UI 라이브러리 로드 및 창 구성
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/deeeiff/Unnamed-Enhancements/main/Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/deeeiff/Unnamed-Enhancements/main/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/deeeiff/Unnamed-Enhancements/main/SaveManager.lua"))()
+
+local Window = Library:CreateWindow({
+    Title = 'Quantum + RCLR Prem | Delta Optimized Suite',
+    Center = true,
+    AutoShow = true,
+    TabPadding = 8
+})
+
+local Tabs = {
+    Combat = Window:AddTab('Combat'),
+    VoidSpam = Window:AddTab('Void Spam'),
+    Orbit = Window:AddTab('Orbit'),
+    World = Window:AddTab('World'),
+    SkinChanger = Window:AddTab('Skin'),
+    Settings = Window:AddTab('Settings')
+}
+
+local CombatBox = Tabs.Combat:AddLeftGroupbox('Auto-Shoot')
+CombatBox:AddToggle('EnabledToggle', { Text = 'Enable Auto-Shoot', Default = false, Callback = function(v) Settings.Enabled = v end })
+
+local VoidSpamBox = Tabs.VoidSpam:AddLeftGroupbox('Void Spam (Delta Safe)')
+VoidSpamBox:AddToggle('VoidSpamEnabled', { Text = 'Enable Void Spam', Default = false, Callback = function(v) Settings.VoidSpamEnabled = v end })
+VoidSpamBox:AddSlider('VoidSpeed', { Text = 'Void Speed', Default = Settings.VoidSpeed, Min = 100, Max = 50000, Rounding = 0, Callback = function(v) Settings.VoidSpeed = v end })
+
+local WorldBox = Tabs.World:AddLeftGroupbox('Environment')
+WorldBox:AddToggle('FullbrightToggle', { Text = 'Enable Fullbright', Default = false, Callback = function(v) Settings.FullbrightEnabled = v; applyWorldSettings() end })
+WorldBox:AddToggle('SkyboxToggle', { Text = 'Enable Custom Skybox', Default = false, Callback = function(v) Settings.world_skybox_enabled = v; applyWorldSettings() end })
+
+local SkinBox = Tabs.SkinChanger:AddLeftGroupbox('Skin Customizer')
+SkinBox:AddToggle('SkinChangerToggle', { Text = 'Enable Skin Changer', Default = false, Callback = function(v) Settings.SkinChangerEnabled = v end })
+
+local SettingsBox = Tabs.Settings:AddLeftGroupbox('Configuration')
+SettingsBox:AddButton('Unload Script', function() Library:Unload() end)
+
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+ThemeManager:SetFolder('RCLR_Delta')
+SaveManager:BuildConfigSection(Tabs.Settings)
+
+print('[Quantum + RCLR Master] 델타 최적화 버전 로딩 완료!')
